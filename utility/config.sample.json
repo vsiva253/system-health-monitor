@@ -1,0 +1,6 @@
+{
+  "apiUrl": "http://localhost:5000/api/report",
+  "apiKey": "REPLACE_WITH_YOUR_AGENT_TOKEN",
+  "intervalMinutes": 30,
+  "jitterSeconds": 30
+}
