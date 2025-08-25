@@ -13,3 +13,5 @@ export function authAgent(req, res, next) {
   }
   next();
 }
+
+module.exports = { authAgent };

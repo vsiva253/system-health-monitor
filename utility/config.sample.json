@@ -1,5 +1,5 @@
 {
-  "apiUrl": "https://system-health-monitor-arqh.onrender.com/api/report",
+  "apiUrl": "https://system-health-monitor-arqh.onrender.com/api/reports",
   "apiKey": "dev-agent-token",
   "intervalMinutes": 30,
   "jitterSeconds": 30

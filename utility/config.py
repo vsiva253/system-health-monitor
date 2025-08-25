@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 # ---- Editable defaults (or override via environment variables) ----
-API_URL = os.getenv("SYSHEALTH_API_URL", "https://system-health-monitor-arqh.onrender.com/api/report")
+API_URL = os.getenv("SYSHEALTH_API_URL", "https://system-health-monitor-arqh.onrender.com/api/reports")
 API_KEY = os.getenv("SYSHEALTH_API_KEY", "dev-agent-token")
 INTERVAL_MINUTES = int(os.getenv("SYSHEALTH_INTERVAL_MINUTES", "30"))  # clamp 15–60 in main
 JITTER_SECONDS = int(os.getenv("SYSHEALTH_JITTER_SECONDS", "30"))

@@ -1,4 +1,4 @@
-export function deriveIssues(snapshot) {
+function deriveIssues(snapshot) {
   // returns { hasIssues, issues[] }
   const issues = [];
 
@@ -21,3 +21,5 @@ export function deriveIssues(snapshot) {
 
   return { hasIssues: issues.length > 0, issues };
 }
+
+module.exports = { deriveIssues };
