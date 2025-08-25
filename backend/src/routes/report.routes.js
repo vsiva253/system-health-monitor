@@ -5,6 +5,9 @@ const Machine = require("../models/machine.model.js");
 const Report = require("../models/report.model.js");
 const { authAgent } = require("../middleware/authAgent.js");
 const { deriveIssues } = require("../utils/deriveIssues.js");
+const {
+  getReportsByMachineId,
+} = require("../controllers/report.controller.js");
 
 const router = express.Router();
 
@@ -36,7 +39,6 @@ router.post("/report", authAgent, async (req, res) => {
 
   const { hasIssues, issues } = deriveIssues(snap);
 
-  // upsert latest machine snapshot
   const now = new Date();
   const reportedAt = snap.timestamp ? new Date(snap.timestamp) : now;
 
@@ -76,7 +78,6 @@ router.post("/report", authAgent, async (req, res) => {
     { upsert: true, new: true }
   );
 
-  // store history entry
   await Report.create({
     machineId: snap.machineId,
     payload: snap,
@@ -85,5 +86,7 @@ router.post("/report", authAgent, async (req, res) => {
 
   return res.json({ ok: true });
 });
+
+router.get("/reports/:machineId", getReportsByMachineId);
 
 module.exports = router;
