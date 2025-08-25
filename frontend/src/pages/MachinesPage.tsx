@@ -1,26 +1,35 @@
-import { useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getCoreRowModel,
   useReactTable,
   flexRender,
-  type Row,
 } from "@tanstack/react-table";
+
 import { fetchMachines } from "../api/machines";
-import { useMachineStore } from "../store/machineStore";
+import { fetchReports } from "../api/reports";
 import type { Machine } from "../types/machine";
+import type { Report } from "../types/report";
 
 export default function MachinesPage() {
-  const { machines, setMachines, filters, setFilters } = useMachineStore();
-
-  const { data, isLoading, refetch } = useQuery({
+  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [filters, setFilters] = useState<{ os?: string; hasIssues?: boolean }>(
+    {}
+  );
+  const {
+    data: machines = [],
+    isLoading,
+    refetch,
+  } = useQuery<Machine[]>({
     queryKey: ["machines"],
     queryFn: fetchMachines,
   });
-
-  useEffect(() => {
-    if (data) setMachines(data);
-  }, [data, setMachines]);
+  const { data: reports } = useQuery<Report[]>({
+    queryKey: ["reports", selectedMachine?.machineId],
+    queryFn: () => fetchReports(selectedMachine!.machineId),
+    enabled: !!selectedMachine,
+  });
+  console.log(reports);
 
   const filteredMachines = useMemo(() => {
     return machines.filter((m) => {
@@ -39,102 +48,16 @@ export default function MachinesPage() {
     });
   }, [machines, filters]);
 
-  // ----- TanStack Table Columns -----
-
   const columns = useMemo(
     () => [
-      {
-        accessorKey: "machineId",
-        size: 150,
-        header: () => <div>Machine ID</div>,
-        cell: ({ row }: { row: Row<Machine> }) => (
-          <div className="text-center">{row.original.machineId}</div>
-        ),
-      },
-      {
-        accessorKey: "hostname",
-        size: 150,
-        header: () => <div>Hostname</div>,
-        cell: ({ row }) => (
-          <div className="text-left">{row.original.hostname}</div>
-        ),
-      },
-      {
-        accessorKey: "os",
-        size: 180,
-        header: () => <div>OS / Version</div>,
-        cell: ({ row }) => (
-          <div>
-            {row.original.os} {row.original.osVersion}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "diskEncrypted",
-        size: 120,
-        header: () => <div>Disk Encrypted</div>,
-        cell: ({ row }) => (
-          <span
-            className={
-              row.original.diskEncrypted ? "text-green-600" : "text-red-600"
-            }
-          >
-            {row.original.diskEncrypted ? "Yes" : "No"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "osUpdated",
-        size: 120,
-        header: () => <div>OS Updated</div>,
-        cell: ({ row }) => (
-          <span
-            className={
-              row.original.osUpdated ? "text-green-600" : "text-red-600"
-            }
-          >
-            {row.original.osUpdated ? "Up-to-date" : "Pending"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "antivirusInstalled",
-        size: 120,
-        header: () => <div>Antivirus</div>,
-        cell: ({ row }) => {
-          const ok =
-            row.original.antivirusInstalled && row.original.antivirusRunning;
-          return (
-            <span className={ok ? "text-green-600" : "text-red-600"}>
-              {ok ? "OK" : "Issue"}
-            </span>
-          );
-        },
-      },
-      {
-        accessorKey: "sleepPolicyOk",
-        size: 140,
-        header: () => <div>Sleep Policy</div>,
-        cell: ({ row }) => {
-          const ok = row.original.sleepPolicyOk;
-          const minutes = row.original.sleepTimeoutMinutes;
-          return (
-            <span className={ok ? "text-green-600" : "text-red-600"}>
-              {ok ? "OK" : `Timeout ${minutes} min`}
-            </span>
-          );
-        },
-      },
-      {
-        accessorKey: "lastSeenAt",
-        size: 180,
-        header: () => <div>Last Seen</div>,
-        cell: ({ row }) => (
-          <div>
-            {new Date(row.original.lastSeenAt || "").toLocaleString() || "-"}
-          </div>
-        ),
-      },
+      { accessorKey: "machineId", header: "Machine ID" },
+      { accessorKey: "hostname", header: "Hostname" },
+      { accessorKey: "os", header: "OS / Version" },
+      { accessorKey: "diskEncrypted", header: "Disk Encrypted" },
+      { accessorKey: "osUpdated", header: "OS Updated" },
+      { accessorKey: "antivirusInstalled", header: "Antivirus" },
+      { accessorKey: "sleepPolicyOk", header: "Sleep Policy" },
+      { accessorKey: "lastSeenAt", header: "Last Seen" },
     ],
     []
   );
@@ -153,7 +76,9 @@ export default function MachinesPage() {
       <div className="mb-4 flex space-x-4">
         <select
           value={filters.os || ""}
-          onChange={(e) => setFilters({ os: e.target.value || undefined })}
+          onChange={(e) =>
+            setFilters({ ...filters, os: e.target.value || undefined })
+          }
           className="border p-2 rounded"
         >
           <option value="">All OS</option>
@@ -172,7 +97,10 @@ export default function MachinesPage() {
           }
           onChange={(e) => {
             const v = e.target.value;
-            setFilters({ hasIssues: v === "" ? undefined : v === "true" });
+            setFilters({
+              ...filters,
+              hasIssues: v === "" ? undefined : v === "true",
+            });
           }}
           className="border p-2 rounded"
         >
@@ -192,38 +120,100 @@ export default function MachinesPage() {
       {isLoading ? (
         <p>Loading...</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-300">
-            <thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} className="bg-gray-200">
-                  {headerGroup.headers.map((header) => (
-                    <th key={header.id} className="border px-4 py-2 text-left">
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b hover:bg-gray-50">
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="border px-4 py-2">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-gray-300">
+              <thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id} className="bg-gray-200">
+                    {headerGroup.headers.map((header) => (
+                      <th
+                        key={header.id}
+                        className="border px-4 py-2 text-left"
+                      >
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className={`border-b hover:bg-gray-50 cursor-pointer ${
+                      selectedMachine?._id === row.original._id
+                        ? "bg-gray-100"
+                        : ""
+                    }`}
+                    onClick={() => setSelectedMachine(row.original)}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="border px-4 py-2">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Reports */}
+          {selectedMachine && reports && reports?.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-xl font-semibold mb-2">
+                Reports for {selectedMachine.hostname} (
+                {selectedMachine.machineId})
+              </h3>
+              <table className="min-w-full border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-200">
+                    <th className="border px-4 py-2">Timestamp</th>
+                    <th className="border px-4 py-2">OS Updated</th>
+                    <th className="border px-4 py-2">Disk Encrypted</th>
+                    <th className="border px-4 py-2">Antivirus</th>
+                    <th className="border px-4 py-2">Sleep Policy</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tbody>
+                    {(reports || []).map((r) => (
+                      <tr key={r._id} className="border-b hover:bg-gray-50">
+                        <td className="border px-4 py-2">
+                          {new Date(r.createdAt).toLocaleString()}
+                        </td>
+                        <td className="border px-4 py-2">
+                          {r.payload.osUpdated ? "Up-to-date" : "Pending"}
+                        </td>
+                        <td className="border px-4 py-2">
+                          {r.payload.diskEncrypted ? "Yes" : "No"}
+                        </td>
+                        <td className="border px-4 py-2">
+                          {r.payload.antivirusInstalled &&
+                          r.payload.antivirusRunning
+                            ? "OK"
+                            : "Issue"}
+                        </td>
+                        <td className="border px-4 py-2">
+                          {r.payload.sleepPolicyOk
+                            ? "OK"
+                            : `Timeout ${r.payload.sleepTimeoutMinutes} min`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
