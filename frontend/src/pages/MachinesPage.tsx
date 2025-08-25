@@ -1,7 +1,14 @@
-import React, { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  getCoreRowModel,
+  useReactTable,
+  flexRender,
+  type Row,
+} from "@tanstack/react-table";
 import { fetchMachines } from "../api/machines";
 import { useMachineStore } from "../store/machineStore";
+import type { Machine } from "../types/machine";
 
 export default function MachinesPage() {
   const { machines, setMachines, filters, setFilters } = useMachineStore();
@@ -15,23 +22,131 @@ export default function MachinesPage() {
     if (data) setMachines(data);
   }, [data, setMachines]);
 
-  const filteredMachines = machines.filter((m) => {
-    let ok = true;
-    if (filters.os) ok = ok && m.os === filters.os;
-    if (filters.hasIssues !== undefined) {
-      const issues =
-        !m.diskEncrypted ||
-        !m.osUpdated ||
-        !m.antivirusInstalled ||
-        !m.antivirusRunning ||
-        !m.sleepPolicyOk;
-      ok = ok && (filters.hasIssues ? issues : !issues);
-    }
-    return ok;
+  const filteredMachines = useMemo(() => {
+    return machines.filter((m) => {
+      let ok = true;
+      if (filters.os) ok = ok && m.os === filters.os;
+      if (filters.hasIssues !== undefined) {
+        const issues =
+          !m.diskEncrypted ||
+          !m.osUpdated ||
+          !m.antivirusInstalled ||
+          !m.antivirusRunning ||
+          !m.sleepPolicyOk;
+        ok = ok && (filters.hasIssues ? issues : !issues);
+      }
+      return ok;
+    });
+  }, [machines, filters]);
+
+  // ----- TanStack Table Columns -----
+
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "machineId",
+        size: 150,
+        header: () => <div>Machine ID</div>,
+        cell: ({ row }: { row: Row<Machine> }) => (
+          <div className="text-center">{row.original.machineId}</div>
+        ),
+      },
+      {
+        accessorKey: "hostname",
+        size: 150,
+        header: () => <div>Hostname</div>,
+        cell: ({ row }) => (
+          <div className="text-left">{row.original.hostname}</div>
+        ),
+      },
+      {
+        accessorKey: "os",
+        size: 180,
+        header: () => <div>OS / Version</div>,
+        cell: ({ row }) => (
+          <div>
+            {row.original.os} {row.original.osVersion}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "diskEncrypted",
+        size: 120,
+        header: () => <div>Disk Encrypted</div>,
+        cell: ({ row }) => (
+          <span
+            className={
+              row.original.diskEncrypted ? "text-green-600" : "text-red-600"
+            }
+          >
+            {row.original.diskEncrypted ? "Yes" : "No"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "osUpdated",
+        size: 120,
+        header: () => <div>OS Updated</div>,
+        cell: ({ row }) => (
+          <span
+            className={
+              row.original.osUpdated ? "text-green-600" : "text-red-600"
+            }
+          >
+            {row.original.osUpdated ? "Up-to-date" : "Pending"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "antivirusInstalled",
+        size: 120,
+        header: () => <div>Antivirus</div>,
+        cell: ({ row }) => {
+          const ok =
+            row.original.antivirusInstalled && row.original.antivirusRunning;
+          return (
+            <span className={ok ? "text-green-600" : "text-red-600"}>
+              {ok ? "OK" : "Issue"}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "sleepPolicyOk",
+        size: 140,
+        header: () => <div>Sleep Policy</div>,
+        cell: ({ row }) => {
+          const ok = row.original.sleepPolicyOk;
+          const minutes = row.original.sleepTimeoutMinutes;
+          return (
+            <span className={ok ? "text-green-600" : "text-red-600"}>
+              {ok ? "OK" : `Timeout ${minutes} min`}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "lastSeenAt",
+        size: 180,
+        header: () => <div>Last Seen</div>,
+        cell: ({ row }) => (
+          <div>
+            {new Date(row.original.lastSeenAt || "").toLocaleString() || "-"}
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const table = useReactTable<Machine>({
+    data: filteredMachines,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
   });
 
   return (
-    <div>
+    <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Machines</h2>
 
       {/* Filters */}
@@ -77,66 +192,38 @@ export default function MachinesPage() {
       {isLoading ? (
         <p>Loading...</p>
       ) : (
-        <table className="min-w-full bg-white rounded shadow">
-          <thead>
-            <tr className="bg-gray-200 text-left">
-              <th className="p-2">Machine ID</th>
-              <th className="p-2">Hostname</th>
-              <th className="p-2">OS</th>
-              <th className="p-2">Disk Encrypted</th>
-              <th className="p-2">OS Updated</th>
-              <th className="p-2">Antivirus</th>
-              <th className="p-2">Sleep Policy</th>
-              <th className="p-2">Last Seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredMachines.map((m) => (
-              <tr key={m.machineId} className="border-b hover:bg-gray-50">
-                <td className="p-2">{m.machineId}</td>
-                <td className="p-2">{m.hostname}</td>
-                <td className="p-2">
-                  {m.os} {m.osVersion}
-                </td>
-                <td
-                  className={`p-2 ${
-                    m.diskEncrypted ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {m.diskEncrypted ? "Yes" : "No"}
-                </td>
-                <td
-                  className={`p-2 ${
-                    m.osUpdated ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {m.osUpdated ? "Up-to-date" : "Pending"}
-                </td>
-                <td
-                  className={`p-2 ${
-                    m.antivirusInstalled && m.antivirusRunning
-                      ? "text-green-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {m.antivirusInstalled && m.antivirusRunning ? "OK" : "Issue"}
-                </td>
-                <td
-                  className={`p-2 ${
-                    m.sleepPolicyOk ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {m.sleepPolicyOk
-                    ? "OK"
-                    : `Timeout ${m.sleepTimeoutMinutes} min`}
-                </td>
-                <td className="p-2">
-                  {new Date(m.lastSeenAt).toLocaleString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border border-gray-300">
+            <thead>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id} className="bg-gray-200">
+                  {headerGroup.headers.map((header) => (
+                    <th key={header.id} className="border px-4 py-2 text-left">
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => (
+                <tr key={row.id} className="border-b hover:bg-gray-50">
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="border px-4 py-2">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

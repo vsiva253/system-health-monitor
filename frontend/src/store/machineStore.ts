@@ -1,18 +1,5 @@
 import { create } from "zustand";
-
-export interface Machine {
-  machineId: string;
-  hostname: string;
-  os: string;
-  osVersion: string;
-  diskEncrypted: boolean | null;
-  osUpdated: boolean | null;
-  antivirusInstalled: boolean | null;
-  antivirusRunning: boolean | null;
-  sleepPolicyOk: boolean | null;
-  sleepTimeoutMinutes: number | null;
-  lastSeenAt: string; // ISO string
-}
+import type { Machine } from "../types/machine";
 
 interface MachineState {
   machines: Machine[];
@@ -25,5 +12,6 @@ export const useMachineStore = create<MachineState>((set) => ({
   machines: [],
   setMachines: (machines) => set({ machines }),
   filters: {},
-  setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),
+  setFilters: (filters) =>
+    set((state) => ({ filters: { ...state.filters, ...filters } })),
 }));
