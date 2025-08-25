@@ -4,18 +4,21 @@ import {
   getCoreRowModel,
   useReactTable,
   flexRender,
+  getPaginationRowModel,
 } from "@tanstack/react-table";
 
 import { fetchMachines } from "../api/machines";
 import { fetchReports } from "../api/reports";
 import type { Machine } from "../types/machine";
 import type { Report } from "../types/report";
+import ReportSidePanel from "../componenents/ReportSidePanel";
 
 export default function MachinesPage() {
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [filters, setFilters] = useState<{ os?: string; hasIssues?: boolean }>(
     {}
   );
+
   const {
     data: machines = [],
     isLoading,
@@ -29,7 +32,6 @@ export default function MachinesPage() {
     queryFn: () => fetchReports(selectedMachine!.machineId),
     enabled: !!selectedMachine,
   });
-  console.log(reports);
 
   const filteredMachines = useMemo(() => {
     return machines.filter((m) => {
@@ -66,6 +68,8 @@ export default function MachinesPage() {
     data: filteredMachines,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageIndex: 0, pageSize : 10 } },
   });
 
   return (
@@ -165,54 +169,49 @@ export default function MachinesPage() {
             </table>
           </div>
 
-          {/* Reports */}
-          {selectedMachine && reports && reports?.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-xl font-semibold mb-2">
-                Reports for {selectedMachine.hostname} (
-                {selectedMachine.machineId})
-              </h3>
-              <table className="min-w-full border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="border px-4 py-2">Timestamp</th>
-                    <th className="border px-4 py-2">OS Updated</th>
-                    <th className="border px-4 py-2">Disk Encrypted</th>
-                    <th className="border px-4 py-2">Antivirus</th>
-                    <th className="border px-4 py-2">Sleep Policy</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tbody>
-                    {(reports || []).map((r) => (
-                      <tr key={r._id} className="border-b hover:bg-gray-50">
-                        <td className="border px-4 py-2">
-                          {new Date(r.createdAt).toLocaleString()}
-                        </td>
-                        <td className="border px-4 py-2">
-                          {r.payload.osUpdated ? "Up-to-date" : "Pending"}
-                        </td>
-                        <td className="border px-4 py-2">
-                          {r.payload.diskEncrypted ? "Yes" : "No"}
-                        </td>
-                        <td className="border px-4 py-2">
-                          {r.payload.antivirusInstalled &&
-                          r.payload.antivirusRunning
-                            ? "OK"
-                            : "Issue"}
-                        </td>
-                        <td className="border px-4 py-2">
-                          {r.payload.sleepPolicyOk
-                            ? "OK"
-                            : `Timeout ${r.payload.sleepTimeoutMinutes} min`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </tbody>
-              </table>
+          {/* Pagination Controls */}
+          <div className="mt-2 flex items-center justify-between">
+            <div>
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {table.getPageCount()}
             </div>
-          )}
+            <div className="flex space-x-2">
+              <button
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                className="px-3 py-1 border rounded disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                className="px-3 py-1 border rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+              <select
+                value={table.getState().pagination.pageSize}
+                onChange={(e) => {
+                  table.setPageSize(Number(e.target.value));
+                }}
+                className="border p-1 rounded"
+              >
+                {[5, 10, 20, 50].map((size) => (
+                  <option key={size} value={size}>
+                    Show {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <ReportSidePanel
+            isOpen={!!selectedMachine}
+            onClose={() => setSelectedMachine(null)}
+            machineName={selectedMachine?.hostname || ""}
+            reports={reports || []}
+          />
         </>
       )}
     </div>
