@@ -1,6 +1,6 @@
 {
-  "apiUrl": "http://localhost:5000/api/report",
-  "apiKey": "REPLACE_WITH_YOUR_AGENT_TOKEN",
+  "apiUrl": "https://system-health-monitor-arqh.onrender.com/api/report",
+  "apiKey": "dev-agent-token",
   "intervalMinutes": 30,
   "jitterSeconds": 30
 }
