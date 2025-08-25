@@ -1,28 +1,16 @@
-import sys
-import time
-from pathlib import Path
-
-# Add checks folder to path
-BASE_DIR = Path(__file__).parent
-CHECKS_DIR = BASE_DIR
-sys.path.insert(0, str(CHECKS_DIR))
-
 import random
+import time
+from datetime import datetime, timezone
 
-import config
-import utils
-import summary
-import disk_encryption
-import os_updates
-import antivirus
-import sleep_settings
-
-log = utils.log
-send_report = utils.send_report
-stable_machine_id = utils.stable_machine_id
-hash_payload = utils.hash_payload
-load_last_state = utils.load_last_state
-save_last_state = utils.save_last_state
+from checks import (
+    get_os_summary, check_disk_encryption, check_updates,
+    check_antivirus, check_sleep_policy
+)
+from config import INTERVAL_MINUTES, JITTER_SECONDS
+from utils import (
+    now_iso, stable_machine_id, load_last_state, save_last_state,
+    hash_payload, send_report
+)
 
 
 def clamp_interval(m: int) -> int:
@@ -30,66 +18,44 @@ def clamp_interval(m: int) -> int:
 
 
 def collect_snapshot() -> dict:
-    try:
-        os_info = summary.get_os_summary()
-    except Exception as e:
-        log(f"OS summary check failed: {e}")
-        os_info = {"os": None, "osVersion": None}
+    os_info = get_os_summary()
+    disk_encrypted = check_disk_encryption()
+    updates = check_updates()
+    av = check_antivirus()
+    sleep = check_sleep_policy()
 
-    try:
-        disk_encrypted = disk_encryption.check_disk_encryption()
-    except Exception as e:
-        log(f"Disk encryption check failed: {e}")
-        disk_encrypted = None
-
-    try:
-        updates = os_updates.check_updates()
-    except Exception as e:
-        log(f"Update check failed: {e}")
-        updates = {"upToDate": None, "pending": None}
-
-    try:
-        av = antivirus.check_antivirus()
-    except Exception as e:
-        log(f"Antivirus check failed: {e}")
-        av = {"installed": None, "running": None, "name": None}
-
-    try:
-        sleep = sleep_settings.check_sleep_policy()
-    except Exception as e:
-        log(f"Sleep policy check failed: {e}")
-        sleep = {"ok": None, "timeoutMinutes": None}
-
-    return {
+    payload = {
         "machineId": stable_machine_id(),
         "hostname": __import__("platform").node(),
         "os": os_info["os"],
         "osVersion": os_info["osVersion"],
-        "diskEncrypted": disk_encrypted,
-        "osUpdated": updates.get("upToDate"),
-        "updatesPending": updates.get("pending"),
+        "diskEncrypted": disk_encrypted,                # True/False/None
+        "osUpdated": updates.get("upToDate"),           # True/False/None
+        "updatesPending": updates.get("pending"),       # int/None
         "antivirusInstalled": av.get("installed"),
         "antivirusRunning": av.get("running"),
         "antivirusName": av.get("name"),
         "sleepPolicyOk": sleep.get("ok"),
         "sleepTimeoutMinutes": sleep.get("timeoutMinutes"),
-        "timestamp": utils.now_iso(),
+        "timestamp": now_iso(),
     }
+    return payload
 
 
 def loop():
-    interval = clamp_interval(config.INTERVAL_MINUTES)
-    jitter = int(config.JITTER_SECONDS)
+    interval = clamp_interval(INTERVAL_MINUTES)
+    jitter = int(JITTER_SECONDS)
 
-    log(f"syshealth utility starting. interval={interval}m ±{jitter}s  id={stable_machine_id()}")
+    print(f"[{now_iso()}] syshealth utility starting. interval={interval}m ±{jitter}s  id={stable_machine_id()}")
 
+    # send once on start so backend sees this machine
     snapshot = collect_snapshot()
     ok, status, text = send_report(snapshot)
     if ok:
         save_last_state(snapshot)
-        log("initial report sent ✅")
+        print(f"[{now_iso()}] initial report sent ✅")
     else:
-        log(f"initial report failed ({status}): {text[:200]}")
+        print(f"[{now_iso()}] initial report failed ({status}): {text[:200]}")
 
     last_hash = hash_payload(snapshot, exclude_keys={"timestamp"})
 
@@ -101,21 +67,20 @@ def loop():
 
         snap = collect_snapshot()
         h = hash_payload(snap, exclude_keys={"timestamp"})
-
         if h != last_hash:
             ok, status, text = send_report(snap)
             if ok:
                 save_last_state(snap)
                 last_hash = h
-                log("change detected → report sent ✅")
+                print(f"[{now_iso()}] change detected → report sent ✅")
             else:
-                log(f"send failed ({status}): {text[:200]}")
+                print(f"[{now_iso()}] send failed ({status}): {text[:200]}")
         else:
-            log("no change → not sending")
+            print(f"[{now_iso()}] no change → not sending")
 
 
 if __name__ == "__main__":
     try:
         loop()
     except KeyboardInterrupt:
-        log("exiting on user interrupt")
+        print(f"[{now_iso()}] exiting on user interrupt")
